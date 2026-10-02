@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="panel">Fake Friend</title>
+  <link rel="stylesheet" href="src/popup.css">
+</head>
+<body>
+  <main>
+    <header><h1 dir="ltr">Fake Friend<span>.</span></h1><p data-i18n="subtitle"></p></header>
+    <section aria-live="polite" data-i18n-label="pageState">
+      <p class="state" id="popup-state" data-i18n="checking"></p>
+      <h2 id="popup-title" data-i18n="preparing"></h2>
+      <p class="message" id="popup-message" data-i18n="checkingMessage"></p>
+      <p class="detail" id="popup-detail" hidden></p>
+    </section>
+    <ol id="popup-help" hidden>
+      <li data-i18n="helpOpen"></li>
+      <li data-i18n="helpLogin"></li>
+      <li data-i18n="helpPanel"></li>
+    </ol>
+    <button id="go-following" disabled data-i18n="goFollowing"></button>
+    <footer data-i18n="popupFooter"></footer>
+  </main>
+  <script type="module" src="src/popup-entry.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+:host { all: initial; color-scheme: light; }
+.navigation-error { position: fixed; z-index: 2147483000; right: 18px; bottom: 18px; box-sizing: border-box; width: 340px; max-width: calc(100vw - 36px); padding: 18px; border: 1px solid #ddd9d3; border-radius: 12px; background: #faf9f5; color: #292929; box-shadow: 0 6px 28px #00000026; font: 13px/1.6 "PingFang SC", "Microsoft YaHei", sans-serif; }
+strong { font-size: 15px; }
+p { margin: 9px 0 14px; overflow-wrap: anywhere; color: #626262; }
+button { border: 0; border-radius: 6px; padding: 7px 16px; background: #292929; color: #fffefa; cursor: pointer; font: inherit; }
+button:focus-visible { outline: 2px solid #707070; outline-offset: 3px; }

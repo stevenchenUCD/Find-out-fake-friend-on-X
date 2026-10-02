@@ -1,0 +1,14 @@
+{
+  "name": "fake-friend",
+  "version": "0.1.0",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "description": "本地 Chrome 扩展：检查 X 关注列表并串行清理未回关账号。",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node scripts/check.mjs",
+    "preview": "node tests/preview-server.mjs"
+  },
+  "devDependencies": { "jsdom": "28.1.0" }
+}

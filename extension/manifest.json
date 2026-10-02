@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Fake Friend",
+  "version": "0.1.0",
+  "minimum_chrome_version": "120",
+  "description": "扫描 X 当前关注关系，逐个定位确认，按白名单与确认名单低频清理。数据仅保存在本地。",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "打开 Fake Friend", "default_popup": "popup.html" },
+  "content_scripts": [{ "matches": ["https://x.com/home*"], "js": ["src/following-navigation-entry.js"], "run_at": "document_idle" }],
+  "web_accessible_resources": [{ "resources": ["src/*.js", "src/*.css", "src/localization/*.js"], "matches": ["https://x.com/*"] }]
+}
