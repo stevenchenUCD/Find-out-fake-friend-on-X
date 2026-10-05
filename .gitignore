@@ -2,3 +2,7 @@ node_modules/
 temp/
 .DS_Store
 AGENTS.md
+
+# 本地智能体配置与个人技能
+/.agents/
+/.claude/
