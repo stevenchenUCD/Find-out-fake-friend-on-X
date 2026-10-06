@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "اسحب الحافة اللي تحت عشان تغيّر الارتفاع",
+  "errorPanelHeightSave": "مش قادرين نحفظ ارتفاع اللوحة: {reason}",
   "waitingListUpdate": "مستنيين X يحدّث القائمة. التقدم محفوظ.",
   "language": "اللغة",
   "panel": "Fake Friend",

@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "Faites glisser le bord inférieur pour régler la hauteur",
+  "errorPanelHeightSave": "Impossible d’enregistrer la hauteur du panneau : {reason}",
   "waitingListUpdate": "En attente de la mise à jour de la liste par X. Progression conservée.",
   "language": "Langue",
   "panel": "Fake Friend",

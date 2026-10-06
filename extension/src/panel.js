@@ -1,12 +1,13 @@
 import { createXAdapter, normalizeHandle, readOwner } from './x-page.js';
 import { CleanupSession, DEFAULT_SETTINGS, validateSettings } from './cleanup-session.js';
-import { createAlternatingInterval } from './pacing.js';
 import { ReviewQueue } from './review-queue.js';
 import { LocalStore } from './local-store.js';
 import { createI18n, LANGUAGES, localizeElements } from './localization/index.js';
 import { assertExtensionActive } from './extension-runtime.js';
 
 let mounted = null;
+const DEFAULT_PANEL_HEIGHT = 640;
+const MIN_PANEL_HEIGHT = 420;
 
 export async function openPanel({ document = globalThis.document, adapter, storage, cssURL } = {}) {
   const page = adapter ?? createXAdapter(document, document.defaultView.location, assertExtensionActive);
@@ -77,6 +78,8 @@ class Panel {
     this.phase = 'loading'; this.keep = new Set(); this.keepProfiles = new Map(); this.records = []; this.review = null; this.operation = null;
     this.countdownTimer = null;
     this.noticeTimer = null;
+    this.resizeGesture = null;
+    this.heightSave = Promise.resolve();
     this.events = new AbortController();
     this.host = document.createElement('div'); this.host.id = 'fake-friend-panel';
     this.host.addEventListener('fake-friend:dispose', () => {
@@ -86,12 +89,14 @@ class Panel {
     const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = cssURL;
     this.root.append(css);
     const layout = document.createElement('div'); layout.className = 'panel'; layout.setAttribute('role', 'region'); layout.dataset.i18nLabel = 'panel';
+    layout.id = 'panel-layout'; layout.style.height = `${DEFAULT_PANEL_HEIGHT}px`;
+    layout.style.setProperty('--panel-min-height', `${MIN_PANEL_HEIGHT}px`);
     layout.innerHTML = `
       <header class="masthead"><h1 class="brand" dir="ltr">Fake Friend<span>.</span></h1><button class="icon" id="close" data-i18n-label="close">×</button>
         <p class="subtitle" data-i18n="subtitle"></p><span class="account" id="account" dir="ltr"></span></header>
       <div class="body"><div class="stats"><div class="stat"><strong id="seen">0</strong><small data-i18n="seen"></small></div><div class="stat"><strong id="candidates">0</strong><small data-i18n="pending"></small></div><div class="stat"><strong id="removed">0</strong><small data-i18n="removed"></small></div></div>
-        <div class="status" id="status"><span class="countdown" id="countdown" role="timer" aria-live="off" hidden><small data-i18n="countdown"></small><strong id="countdown-value"></strong></span><span id="status-message" role="status" aria-live="polite"></span></div>
-        <div class="row scan-row"><div class="scan-slot"><button class="button" id="scan" data-i18n="scan"></button><div class="scan-controls" id="scan-controls" role="group" data-i18n-label="controls" hidden><button class="button" id="pause" data-i18n="pause"></button><button class="button" id="resume" data-i18n="resume" hidden></button><button class="button" id="stop" data-i18n="stop"></button></div></div><button class="button primary" id="review-start" data-i18n="review"></button></div>
+        <div class="status-row"><div class="status" id="status"><span class="countdown" id="countdown" role="timer" aria-live="off" hidden><small data-i18n="countdown"></small><strong id="countdown-value"></strong></span><span id="status-message" role="status" aria-live="polite"></span></div>
+          <div class="scan-slot"><button class="button" id="scan" data-i18n="scan"></button><div class="scan-controls" id="scan-controls" role="group" data-i18n-label="controls" hidden><button class="button" id="pause" data-i18n="pause"></button><button class="button" id="resume" data-i18n="resume" hidden></button><button class="button" id="stop" data-i18n="stop"></button></div></div></div>
         <div class="tool-tabs" role="tablist" data-i18n-label="tabs"><button class="tool-tab" id="whitelist-tab" role="tab" aria-controls="whitelist-panel"><span data-i18n="keep"></span> <span id="keep-count">0</span></button><button class="tool-tab" id="records-tab" role="tab" aria-controls="records-panel" data-i18n="list"></button><button class="tool-tab" id="settings-tab" role="tab" aria-controls="settings-panel" data-i18n="settings"></button></div>
         <section class="tool-tab-panel" id="whitelist-panel" role="tabpanel" aria-labelledby="whitelist-tab" hidden><div class="list" id="whitelist-list"></div><div class="keep-add-row"><input type="text" id="keep-input" spellcheck="false" autocomplete="off" autocapitalize="off" dir="ltr" data-i18n-label="addKeep" data-i18n-placeholder="keepPlaceholder"><button class="button secondary" id="add-keep" data-i18n="addKeep"></button></div><p class="caption" data-i18n="keepHint"></p></section>
         <section class="tool-tab-panel" id="settings-panel" role="tabpanel" aria-labelledby="settings-tab" hidden><div class="settings">
@@ -103,13 +108,11 @@ class Panel {
           <label><span data-i18n="unfollowMax"></span><input type="number" id="unfollowMaxSeconds" min="2" max="10000"></label></div>
           <label class="check"><input type="checkbox" id="autoScroll"><span data-i18n="autoScroll"></span></label><p class="caption" data-i18n="pacingHint"></p></section>
         <section class="tool-tab-panel" id="records-panel" role="tabpanel" aria-labelledby="records-tab" hidden>
-          <section class="review" id="review-card" hidden><small id="review-position"></small><strong id="review-name" dir="auto"></strong><span class="handle" id="review-handle" dir="ltr"></span><p class="hint" id="review-hint" data-i18n="reviewHint"></p>
-            <button class="button primary" id="approve" style="width:100%" data-i18n="approve"></button><div class="row"><button class="button secondary" id="keep-person" data-i18n="addKeep"></button><button class="button secondary" id="skip" data-i18n="skip"></button></div></section>
           <button class="button danger" id="execute" style="width:100%" hidden></button>
           <div class="list" id="records"></div>
         </section>
         <div class="footer"><select class="language-select" id="language" data-i18n-label="language"></select><select class="language-select backup-select" id="backup-menu" data-i18n-label="backupMenu"><option value="" disabled selected data-i18n="backupMenu"></option><option value="export" data-i18n="exportBackup"></option><option value="import" id="import-option" data-i18n="importKeep"></option></select><input type="file" id="import-file" accept=".json,application/json" data-i18n-label="importKeep" hidden></div>
-      </div><div class="navigation-notice" id="navigation-notice" role="status" aria-live="polite" data-i18n="stayTitle" hidden></div>`;
+      </div><button class="resize-grip" id="panel-resize" role="separator" aria-orientation="horizontal" aria-controls="panel-layout" data-i18n-label="resizePanel" disabled></button><div class="navigation-notice" id="navigation-notice" role="status" aria-live="polite" data-i18n="stayTitle" hidden></div>`;
     this.root.append(layout); document.body.append(this.host);
     for (const language of LANGUAGES) {
       const option = document.createElement('option');
@@ -135,10 +138,42 @@ class Panel {
     } });
     const on = (id, fn) => this.$(id).addEventListener('click', () => { Promise.resolve(fn()).catch(error => this.fail(error)); }, { signal: this.events.signal });
     const command = (id, action) => on(id, () => this.runOperation(action));
-    command('scan', signal => this.scan(signal)); command('review-start', signal => this.startReview(signal)); command('approve', signal => this.decide('remove', signal));
-    command('keep-person', signal => this.decide('keep', signal)); command('skip', signal => this.decide('skip', signal)); command('execute', signal => this.execute(signal));
+    command('scan', signal => this.scan(signal)); command('execute', signal => this.execute(signal));
     on('pause', () => this.pause()); command('resume', signal => this.resume(signal)); on('stop', () => this.stop());
     on('close', () => { this.hide(); return this.pause(); }); command('add-keep', signal => this.addKeep(signal));
+    const resize = this.$('panel-resize');
+    resize.addEventListener('pointerdown', event => {
+      if (resize.disabled || event.button !== 0 || !event.isPrimary || this.resizeGesture) return;
+      event.preventDefault(); resize.focus();
+      this.beginResize(event.pointerId, event.clientY);
+      resize.setPointerCapture(event.pointerId);
+    }, { signal: this.events.signal });
+    resize.addEventListener('pointermove', event => {
+      const gesture = this.resizeGesture;
+      if (gesture?.pointerId === event.pointerId) this.setPanelHeight(gesture.height + event.clientY - gesture.clientY);
+    }, { signal: this.events.signal });
+    resize.addEventListener('pointerup', event => {
+      if (this.resizeGesture?.pointerId === event.pointerId) this.finishResize(true);
+    }, { signal: this.events.signal });
+    for (const type of ['pointercancel', 'lostpointercapture']) {
+      resize.addEventListener(type, event => {
+        if (this.resizeGesture?.pointerId === event.pointerId) this.finishResize(false);
+      }, { signal: this.events.signal });
+    }
+    resize.addEventListener('keydown', event => {
+      if (resize.disabled || !['ArrowUp', 'ArrowDown'].includes(event.key) || this.resizeGesture?.pointerId != null) return;
+      event.preventDefault();
+      if (!this.resizeGesture) this.beginResize(null, 0);
+      this.setPanelHeight(this.root.querySelector('.panel').getBoundingClientRect().height + (event.key === 'ArrowDown' ? 20 : -20));
+    }, { signal: this.events.signal });
+    resize.addEventListener('keyup', event => {
+      if (['ArrowUp', 'ArrowDown'].includes(event.key) && this.resizeGesture?.pointerId === null) this.finishResize(true);
+    }, { signal: this.events.signal });
+    resize.addEventListener('blur', () => {
+      if (this.resizeGesture?.pointerId === null) this.finishResize(true);
+    }, { signal: this.events.signal });
+    document.defaultView.addEventListener('resize', () => this.updateResizeValue(), { signal: this.events.signal });
+    css.addEventListener('load', () => this.updateResizeValue(), { signal: this.events.signal });
     this.$('keep-input').addEventListener('input', () => this.render(), { signal: this.events.signal });
     this.$('keep-input').addEventListener('keydown', event => {
       if (event.key === 'Enter' && !event.isComposing) { event.preventDefault(); this.$('add-keep').click(); }
@@ -179,8 +214,8 @@ class Panel {
       this.runOperation(signal => this.chooseFromList(button.dataset.accountId, button.dataset.choice, signal)).catch(error => this.fail(error));
     }, { signal: this.events.signal });
     this.$('skipFirstCount').addEventListener('change', () => {
-      this.review = null; this.records = []; this.clearHighlight(); this.phase = 'idle';
-      this.status('跳过范围已改变，请重新扫描，再逐个确认。'); this.render();
+      this.review = null; this.records = []; this.phase = 'idle';
+      this.status('跳过范围已改变，请重新扫描，再选择名单。'); this.render();
     }, { signal: this.events.signal });
     document.defaultView.addEventListener('pagehide', event => {
       this.hide();
@@ -197,7 +232,7 @@ class Panel {
   get reviewReady() {
     const pausedScan = this.phase === 'paused' && this.session.mode === 'scan' && this.session.status === 'paused';
     return (!this.scanInProgress || pausedScan) && !this.session.task && this.approvedIds.size > 0 &&
-      (pausedScan || ['idle', 'choosing', 'reviewing', 'reviewed', 'finished', 'stopped'].includes(this.phase));
+      (pausedScan || ['idle', 'choosing', 'reviewed', 'finished', 'stopped'].includes(this.phase));
   }
   get approvedIds() {
     const selected = this.review?.approvedIds() ?? new Set();
@@ -206,7 +241,7 @@ class Panel {
   listChoicesAvailable() {
     if (['scanning', 'paused'].includes(this.phase)) return this.session.mode === 'scan';
     if (this.phase === 'error') return this.session.mode === 'scan' && !this.session.task;
-    return ['idle', 'finished', 'stopped', 'choosing', 'reviewing', 'reviewed'].includes(this.phase);
+    return ['idle', 'finished', 'stopped', 'choosing', 'reviewed'].includes(this.phase);
   }
   setLanguage(locale) {
     this.i18n.setLocale(locale);
@@ -214,6 +249,7 @@ class Panel {
     layout.lang = this.i18n.locale; layout.dir = this.i18n.dir;
     this.$('language').value = this.i18n.locale;
     localizeElements(this.root, this.i18n);
+    this.$('panel-resize').title = this.i18n.t('resizePanel');
     const { message, error, waitUntil } = this.lastStatus;
     this.status(message, error, waitUntil);
     this.render();
@@ -245,16 +281,57 @@ class Panel {
   async init() {
     try {
       const config = await this.store.load(); this.keep = config.keep; this.keepProfiles = config.keepProfiles;
+      const height = await this.store.loadPanelHeight();
+      if (height !== undefined) this.setPanelHeight(height);
       for (const [key, value] of Object.entries(config.settings)) {
         if (key === 'autoScroll') this.$(key).checked = value; else this.$(key).value = value;
       }
-      this.phase = 'idle'; this.status('先扫描名单，再逐个定位确认。'); this.render();
+      this.$('panel-resize').disabled = false; this.updateResizeValue();
+      this.phase = 'idle'; this.status('先扫描名单，再选择需要处理的账号。'); this.render();
     } catch (error) { this.fail(error); }
   }
   readSettings() {
     const settings = {};
     for (const key of Object.keys(DEFAULT_SETTINGS)) settings[key] = key === 'autoScroll' ? this.$(key).checked : Number(this.$(key).value);
     return validateSettings(settings);
+  }
+  setPanelHeight(height) {
+    this.root.querySelector('.panel').style.height = `${Math.max(1, Math.round(height))}px`;
+    this.updateResizeValue();
+  }
+  updateResizeValue() {
+    const { height, top } = this.root.querySelector('.panel').getBoundingClientRect();
+    const available = Math.max(1, Math.round(this.document.defaultView.innerHeight - top * 2));
+    const resize = this.$('panel-resize');
+    resize.setAttribute('aria-valuemin', String(Math.min(MIN_PANEL_HEIGHT, available)));
+    resize.setAttribute('aria-valuemax', String(available));
+    resize.setAttribute('aria-valuenow', String(Math.round(height)));
+  }
+  beginResize(pointerId, clientY) {
+    const layout = this.root.querySelector('.panel');
+    this.resizeGesture = { pointerId, clientY, height: layout.getBoundingClientRect().height, previousHeight: layout.style.height };
+    layout.dataset.resizing = 'true';
+  }
+  finishResize(save) {
+    const gesture = this.resizeGesture;
+    if (!gesture) return;
+    const layout = this.root.querySelector('.panel');
+    const height = Math.round(layout.getBoundingClientRect().height);
+    const resize = this.$('panel-resize');
+    this.resizeGesture = null; delete layout.dataset.resizing;
+    if (gesture.pointerId !== null && resize.hasPointerCapture(gesture.pointerId)) resize.releasePointerCapture(gesture.pointerId);
+    if (!save || height === gesture.height) {
+      layout.style.height = gesture.previousHeight; this.updateResizeValue(); return;
+    }
+    this.setPanelHeight(height);
+    // 每次完成调整只写一次；后一次保存等待前一次，避免旧高度覆盖新高度。
+    this.heightSave = this.heightSave.then(() => this.store.savePanelHeight(height)).then(() => {
+      if (!this.events.signal.aborted) resize.title = this.i18n.t('resizePanel');
+    }).catch(error => {
+      if (this.events.signal.aborted) { console.error(error); return; }
+      const message = `面板高度保存失败：${error.message}`;
+      resize.title = this.i18n.message(message); this.status(message, true);
+    });
   }
   clearCountdown() {
     this.document.defaultView.clearTimeout(this.countdownTimer);
@@ -275,7 +352,17 @@ class Panel {
   status(message, error = false, waitUntil = null) {
     this.lastStatus = { message, error, waitUntil };
     this.clearCountdown();
-    this.$('status-message').textContent = this.i18n.message(message);
+    const text = this.$('status-message');
+    const waiting = message.match(/^([\s\S]*) 下一轮 ([\d.]+) 秒后。$/);
+    text.title = this.i18n.message(message);
+    text.replaceChildren();
+    text.classList.toggle('waiting', Boolean(waiting));
+    if (waiting) {
+      for (const line of [this.i18n.message(waiting[1]), this.i18n.t('nextRound', { count: waiting[2] })]) {
+        const span = this.document.createElement('span'); span.textContent = line;
+        text.append(span);
+      }
+    } else text.textContent = text.title;
     this.$('status').dataset.error = String(error);
     if (waitUntil === null) return;
     const tick = () => {
@@ -288,9 +375,6 @@ class Panel {
     tick();
   }
   fail(error) { this.hideNavigationNotice(); this.phase = 'error'; this.status(error.message, true); this.render(); }
-  clearHighlight() {
-    if (this.highlight) { this.highlight.element.style.outline = this.highlight.outline; this.highlight.element.style.outlineOffset = this.highlight.offset; this.highlight = null; }
-  }
   profileForKeep(handle, row = this.records.find(record => record.handle === handle)) {
     const saved = this.keepProfiles.get(handle);
     const profile = saved ? { ...saved } : { handle, name: handle, avatarUrl: '' };
@@ -299,7 +383,7 @@ class Panel {
     return profile;
   }
   async scan(signal) {
-    this.phase = 'scanning'; this.records = []; this.review = new ReviewQueue([]); this.clearHighlight(); this.render();
+    this.phase = 'scanning'; this.records = []; this.review = new ReviewQueue([]); this.render();
     this.showNavigationNotice();
     const settings = this.readSettings(); await this.store.save(settings, this.keep); signal.throwIfAborted();
     await this.store.beginRun('scan'); signal.throwIfAborted();
@@ -313,7 +397,7 @@ class Panel {
     const keep = new Set([...this.keep, ...imported.keep]);
     const added = keep.size - this.keep.size;
     await this.persistKeep(keep, imported.keepProfiles, signal);
-    this.status(`白名单已导入，新增 ${added} 人。确认名单已重置，请重新逐个确认。`);
+    this.status(`白名单已导入，新增 ${added} 人。确认名单已重置，请重新选择。`);
   }
   async addKeep(signal) {
     const handles = this.$('keep-input').value.split(/[\s,，;；]+/).filter(Boolean).map(normalizeHandle);
@@ -321,7 +405,7 @@ class Panel {
     const profiles = new Map(handles.map(handle => [handle, this.profileForKeep(handle)]));
     await this.persistKeep(new Set([...this.keep, ...handles]), profiles, signal);
     this.$('keep-input').value = '';
-    this.status('白名单已保存。确认名单已重置，请重新逐个确认。');
+    this.status('白名单已保存。确认名单已重置，请重新选择。');
   }
   async removeKeep(handle, signal) {
     const keep = new Set(this.keep); keep.delete(handle);
@@ -332,7 +416,7 @@ class Panel {
     this.phase = 'saving'; this.render();
     const profiles = new Map([...this.keepProfiles, ...updatedProfiles].filter(([handle]) => keep.has(handle)));
     await this.store.save(this.readSettings(), keep, profiles);
-    this.keep = keep; this.keepProfiles = profiles; this.review = null; this.clearHighlight();
+    this.keep = keep; this.keepProfiles = profiles; this.review = null;
     signal.throwIfAborted();
     this.phase = 'idle';
     this.render();
@@ -344,62 +428,8 @@ class Panel {
     else this.review = new ReviewQueue(rows);
     if (!this.review.totalCount) throw new Error('当前没有需要确认的未回关账号。');
   }
-  async startReview(signal) {
-    if (this.scanInProgress) throw new Error('请先结束扫描或当前操作，再选择名单。');
-    this.selectTab('records');
-    this.reviewSettings = this.readSettings();
-    this.nextReviewInterval = createAlternatingInterval();
-    this.phase = 'locating'; this.render();
-    this.showNavigationNotice();
-    await this.prepareReview(signal);
-    signal.throwIfAborted();
-    await this.adapter.resetPosition({ signal, owner: this.owner, timeoutMs: 10000 });
-    signal.throwIfAborted();
-    await this.locateCurrent(signal);
-  }
-  async locateCurrent(signal) {
-    signal.throwIfAborted();
-    if (!this.review.current) {
-      this.clearHighlight(); this.phase = 'reviewed';
-      const count = this.approvedIds.size;
-      this.status(`本轮选择已完成：${count} 人加入清理名单。点击“开始执行”后才会取关。`); this.render(); return;
-    }
-    // 保存选择期间也可隐藏面板；保存完成后，下一人的定位须等待手动继续。
-    if (this.host.hidden) {
-      this.clearHighlight(); this.phase = 'review-paused';
-      this.status('定位已暂停。'); this.render(); return;
-    }
-    this.clearHighlight(); this.phase = 'locating'; this.render();
-    const current = this.review.current;
-    this.status(`正在翻页定位 @${current.handle}…`);
-      const found = await this.adapter.locate(current, { signal, owner: this.owner,
-        minSeconds: this.reviewSettings.scanMinSeconds, maxSeconds: this.reviewSettings.scanMaxSeconds,
-        nextInterval: this.nextReviewInterval,
-        onWait: (ms, message) => this.status(ms > 0 ? `${message} 下一轮 ${ms / 1000} 秒后。` : message, false, ms > 0 ? Date.now() + ms : null) });
-      signal.throwIfAborted();
-      this.highlight = { element: found.element, outline: found.element.style.outline, offset: found.element.style.outlineOffset };
-      found.element.style.outline = '3px solid #b35b3f'; found.element.style.outlineOffset = '-4px';
-      this.phase = 'reviewing';
-      this.status(`已定位 @${current.handle}，请在原页面核对。`);
-      this.$('approve').dataset.eligible = String(found.status === 'candidate' && !this.keep.has(found.handle));
-      this.$('review-hint').dataset.i18n = found.status === 'candidate' ? 'reviewHint' : 'reviewChanged';
-      this.$('review-hint').textContent = this.i18n.t(this.$('review-hint').dataset.i18n);
-      this.render();
-  }
-  async decide(choice, signal) {
-    const current = this.review.current;
-    if (this.phase !== 'reviewing' || !current) throw new Error('请等待定位到当前账号。');
-    const fresh = this.adapter.scan();
-    if (fresh.owner !== this.owner) throw new Error('登录账号已变化，已停止。');
-    const row = fresh.rows.find(r => r.id === current.id && r.handle === current.handle);
-    if (!row) throw new Error('当前账号已移出页面，请停止后重新确认。');
-    if (choice === 'remove' && (row.status !== 'candidate' || this.keep.has(row.handle))) throw new Error('此人当前不满足取关条件，请保留或跳过。');
-    await this.recordDecision(current, choice, signal);
-    await this.locateCurrent(signal);
-  }
   async chooseFromList(id, choice, signal) {
     if (!this.listChoicesAvailable()) throw new Error('请先结束扫描或当前操作，再选择名单。');
-    const continueReview = this.phase === 'reviewing';
     const clearDecision = choice === 'remove' && this.review?.decisions.get(id) === 'remove';
     const decision = clearDecision ? null : choice;
     const current = this.records.find(row => row.id === id && row.status === 'candidate');
@@ -413,10 +443,10 @@ class Panel {
     await this.prepareReview(signal);
     await this.recordDecision(current, decision, signal);
     if (this.scanInProgress) { this.render(); return; }
-    if (!clearDecision && (continueReview || this.review.complete)) return this.locateCurrent(signal);
-    if (clearDecision) this.clearHighlight();
-    this.phase = 'choosing';
-    this.status(`已记录 @${current.handle} 的选择，还剩 ${this.review.pendingCount} 人待确认。可继续在名单中选择，或点击“逐个确认”。`);
+    this.phase = this.review.complete ? 'reviewed' : 'choosing';
+    this.status(this.review.complete
+      ? `本轮选择已完成：${this.approvedIds.size} 人加入清理名单。点击“开始执行”后才会取关。`
+      : `已记录 @${current.handle} 的选择，还剩 ${this.review.pendingCount} 人待确认。`);
     this.render();
   }
   async recordDecision(current, choice, signal) {
@@ -440,7 +470,7 @@ class Panel {
     if (!approved.size) throw new Error('确认名单为空。');
     if (!this.reviewReady) throw new Error('请先结束扫描或当前操作，再选择名单。');
     const settings = this.readSettings();
-    this.phase = 'executing'; this.clearHighlight(); this.render();
+    this.phase = 'executing'; this.render();
     this.showNavigationNotice();
     await this.store.save(settings, this.keep); signal.throwIfAborted();
     await this.store.beginRun('cleanup'); signal.throwIfAborted();
@@ -449,22 +479,12 @@ class Panel {
   async pause() {
     this.hideNavigationNotice();
     this.clearCountdown();
-    if (this.phase === 'locating') { this.phase = 'review-paused'; this.operation?.controller.abort(new Error('已暂停定位')); this.status('定位已暂停。'); this.render(); }
     // 启动前尚在保存设置时，取消启动，避免隐藏后才开始翻页。
-    else if (['scanning', 'executing'].includes(this.phase) && !this.session.task) await this.stop();
+    if (['scanning', 'executing'].includes(this.phase) && !this.session.task) await this.stop();
     else await this.session.pause();
   }
   async resume(signal) {
     this.showNavigationNotice();
-    if (this.phase === 'review-paused') {
-      this.phase = 'locating'; this.render();
-      if (this.review.current) await this.adapter.restorePosition(this.review.current, { signal, owner: this.owner,
-        minSeconds: this.reviewSettings.scanMinSeconds, maxSeconds: this.reviewSettings.scanMaxSeconds,
-        nextInterval: this.nextReviewInterval,
-        onWait: (ms, message) => this.status(ms > 0 ? `${message} 下一轮 ${ms / 1000} 秒后。` : message, false, ms > 0 ? Date.now() + ms : null) });
-      signal.throwIfAborted();
-      return this.locateCurrent(signal);
-    }
     this.phase = this.session.mode === 'scan' ? 'scanning' : 'executing'; this.render();
     if (this.session.mode === 'scan') {
       if (this.store.run.kind !== 'scan') {
@@ -480,19 +500,23 @@ class Panel {
     operation?.controller.abort(new Error('已停止'));
     await this.session.stop();
     if (operation) await operation.task;
-    this.clearHighlight(); this.phase = this.session.status === 'error' ? 'error' : 'stopped'; this.render();
+    this.phase = this.session.status === 'error' ? 'error' : 'stopped'; this.render();
   }
   hide() {
+    this.finishResize(false);
     this.host.hidden = true;
   }
   show() {
     if (!this.host.isConnected) this.document.body.append(this.host);
     this.host.hidden = false;
+    this.updateResizeValue();
   }
   async dispose() {
+    this.finishResize(false);
     this.events.abort(); this.host.remove();
     if (mounted === this) mounted = null;
     await this.stop();
+    await this.heightSave;
   }
   async export(signal) {
     const data = await this.store.exportData();
@@ -535,10 +559,9 @@ class Panel {
   }
   render() {
     const t = this.i18n.t;
-    const active = Boolean(this.operation) || Boolean(this.session.task) || ['loading', 'navigating', 'saving', 'scanning', 'executing', 'locating'].includes(this.phase);
-    const reviewing = this.phase === 'reviewing' && !this.operation;
-    const paused = ['paused', 'review-paused'].includes(this.phase);
-    const showControls = ['scanning', 'executing', 'locating', 'paused', 'review-paused', 'reviewing', 'choosing', 'reviewed'].includes(this.phase);
+    const active = Boolean(this.operation) || Boolean(this.session.task) || ['loading', 'navigating', 'saving', 'scanning', 'executing'].includes(this.phase);
+    const paused = this.phase === 'paused';
+    const showControls = ['scanning', 'executing', 'paused', 'choosing', 'reviewed'].includes(this.phase);
     this.$('scan').hidden = showControls;
     this.$('scan-controls').hidden = !showControls;
     this.$('pause').hidden = paused;
@@ -547,26 +570,17 @@ class Panel {
     this.$('seen').textContent = String(this.records.filter(r => r.id).length);
     this.$('candidates').textContent = String(this.review ? this.review.pendingCount : candidates.length);
     this.$('removed').textContent = String(this.records.filter(row => row.status === 'removed').length);
-    this.$('scan').disabled = active || reviewing || paused;
-    this.$('review-start').disabled = active || reviewing || paused || !(this.review ? this.review.pendingCount : candidates.length);
-    this.$('add-keep').disabled = active || reviewing || paused || !this.$('keep-input').value.trim();
+    this.$('scan').disabled = active || paused;
+    this.$('add-keep').disabled = active || paused || !this.$('keep-input').value.trim();
     this.$('backup-menu').disabled = Boolean(this.operation) || ['loading', 'navigating'].includes(this.phase);
-    this.$('import-option').disabled = active || reviewing || paused;
-    this.$('keep-input').disabled = active || reviewing || paused;
+    this.$('import-option').disabled = active || paused;
+    this.$('keep-input').disabled = active || paused;
     this.$('keep-count').textContent = String(this.keep.size);
-    this.renderKeepList(active || reviewing || paused);
-    for (const key of Object.keys(DEFAULT_SETTINGS)) this.$(key).disabled = active || reviewing || paused;
-    this.$('pause').disabled = !['scanning', 'executing', 'locating'].includes(this.phase);
+    this.renderKeepList(active || paused);
+    for (const key of Object.keys(DEFAULT_SETTINGS)) this.$(key).disabled = active || paused;
+    this.$('pause').disabled = !['scanning', 'executing'].includes(this.phase);
     this.$('resume').disabled = !paused || Boolean(this.operation) || Boolean(this.session.task);
     this.$('stop').disabled = ['idle', 'loading', 'navigating', 'stopped'].includes(this.phase);
-    this.$('review-card').hidden = !this.review?.current || !['reviewing', 'locating', 'review-paused', 'saving'].includes(this.phase);
-    for (const key of ['approve', 'keep-person', 'skip']) this.$(key).disabled = !reviewing;
-    if (reviewing && this.$('approve').dataset.eligible !== 'true') this.$('approve').disabled = true;
-    if (this.review?.current) {
-      this.$('review-position').textContent = t('reviewPosition', { current: this.review.position + 1, total: this.review.totalCount });
-      this.$('review-name').textContent = this.review.current.name || this.review.current.handle;
-      this.$('review-handle').textContent = `@${this.review.current.handle}`;
-    }
     const approved = this.approvedIds.size;
     this.$('execute').hidden = !approved;
     this.$('execute').disabled = !this.reviewReady || active;

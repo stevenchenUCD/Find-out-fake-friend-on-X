@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "Tarik tepi bawah untuk mengubah tinggi",
+  "errorPanelHeightSave": "Tinggi panel tidak dapat disimpan: {reason}",
   "waitingListUpdate": "Menunggu X memperbarui daftar. Progres tetap tersimpan.",
   "language": "Bahasa",
   "panel": "Fake Friend",

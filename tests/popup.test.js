@@ -66,9 +66,11 @@ test('页面校验失败或脚本注入失败，将具体错误送到窗口', as
   assert.ok(injectionError.badges.every(value => value.text === ''));
 });
 
-async function popup(result, failure, goToFollowing = async () => ({ status: 'navigated' })) {
+async function popup(result, failure, goToFollowing = async () => ({ status: 'navigated' }), languages) {
   const html = await readFile(new URL('../extension/popup.html', import.meta.url), 'utf8');
   const dom = new JSDOM(html);
+  // 窗口按浏览器语言显示；检查具体文案的用例需声明浏览器语言。
+  if (languages) Object.defineProperty(dom.window.navigator, 'languages', { value: languages });
   let closed = false;
   const { openPopup } = await import('../extension/src/popup.js');
   await openPopup({ document: dom.window.document, request: async () => {
@@ -79,7 +81,8 @@ async function popup(result, failure, goToFollowing = async () => ({ status: 'na
 }
 
 test('不在关注页面时，窗口显示可点击的前往关注列表按钮', async () => {
-  const { dom, closed } = await popup({ status: 'needs-page', message: '请切换到自己账号的“正在关注”页面。' });
+  const { dom, closed } = await popup({ status: 'needs-page', message: '请切换到自己账号的“正在关注”页面。' },
+    undefined, undefined, ['zh-CN']);
   try {
     assert.equal(closed, false);
     assert.match(dom.window.document.querySelector('#popup-message').textContent, /请切换到.*正在关注/);

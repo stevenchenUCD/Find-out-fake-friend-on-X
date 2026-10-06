@@ -11,7 +11,7 @@ for (let i = 1; i <= 12; i++) {
   row.innerHTML = `<a href="/${handle}"><strong>${names[i-1]}</strong></a><a class="handle" href="/${handle}">@${handle}</a>
     ${i % 3 === 0 ? '<span data-testid="userFollowIndicator">关注了你</span>' : ''}
     <button class="follow" data-testid="${id}-unfollow" aria-label="正在关注 @${handle}">正在关注</button>
-    <p class="bio">虚构账号 ${i} · 用于检查扫描、白名单和逐个确认。</p>`;
+    <p class="bio">虚构账号 ${i} · 用于检查扫描、白名单和名单选择。</p>`;
   row.querySelector('button').addEventListener('click', () => {
     if (row.querySelector('button').dataset.testid.endsWith('-follow')) return;
     const layer = document.createElement('div'); layer.className = 'backdrop';

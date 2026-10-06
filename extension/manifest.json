@@ -3,7 +3,7 @@
   "name": "Fake Friend",
   "version": "0.1.0",
   "minimum_chrome_version": "120",
-  "description": "扫描 X 当前关注关系，逐个定位确认，按白名单与确认名单低频清理。数据仅保存在本地。",
+  "description": "扫描 X 当前关注关系，在名单中选择账号，按白名单与确认名单低频清理。数据仅保存在本地。",
   "permissions": ["activeTab", "scripting", "storage"],
   "background": { "service_worker": "background.js", "type": "module" },
   "action": { "default_title": "打开 Fake Friend", "default_popup": "popup.html" },

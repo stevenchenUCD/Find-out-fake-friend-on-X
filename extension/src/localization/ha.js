@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "Ja gefen ƙasa don daidaita tsawo",
+  "errorPanelHeightSave": "An kasa adana tsawon allon: {reason}",
   "waitingListUpdate": "Ana jiran X ya sabunta jerin. An adana ci gaba.",
   "language": "Harshe",
   "panel": "Fake Friend",

@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "ऊँचाई बदलने के लिए नीचे का किनारा खींचें",
+  "errorPanelHeightSave": "पैनल की ऊँचाई सहेजी नहीं जा सकी: {reason}",
   "waitingListUpdate": "X की सूची अपडेट होने की प्रतीक्षा है। प्रगति सुरक्षित है।",
   "language": "भाषा",
   "panel": "Fake Friend",

@@ -126,15 +126,16 @@ const aliases = {
 for (const [text, key] of Object.entries(aliases)) sourceKeys.set(text, key);
 
 const dynamicMessages = [
+  [/^面板高度保存失败：([\s\S]*)$/, 'errorPanelHeightSave', ['reason']],
   [/^@([A-Za-z0-9_]+) 已移出白名单，已自动保存。$/, 'keepRemoved', ['handle']],
-  [/^白名单已导入，新增 (\d+) 人。确认名单已重置，请重新逐个确认。$/, 'keepImported', ['count']],
+  [/^白名单已导入，新增 (\d+) 人。确认名单已重置，请重新选择。$/, 'keepImported', ['count']],
   [/^已识别 (\d+) 个账号，前 (\d+) 人已跳过。$/, 'scannedSkip', ['count', 'skip']],
   [/^已识别 (\d+) 个账号。$/, 'scanned', ['count']],
   [/^正在确认列表末尾（(\d+)\/2）。$/, 'waitEnd', ['count']],
   [/^本轮选择已完成：(\d+) 人加入清理名单。点击“开始执行”后才会取关。$/, 'reviewDone', ['count']],
   [/^正在翻页定位 @([A-Za-z0-9_]+)…$/, 'locating', ['handle']],
   [/^已定位 @([A-Za-z0-9_]+)，请在原页面核对。$/, 'located', ['handle']],
-  [/^已记录 @([A-Za-z0-9_]+) 的选择，还剩 (\d+) 人待确认。可继续在名单中选择，或点击“逐个确认”。$/, 'decisionSaved', ['handle', 'count']],
+  [/^已记录 @([A-Za-z0-9_]+) 的选择，还剩 (\d+) 人待确认。$/, 'decisionSaved', ['handle', 'count']],
   [/^正在处理 @([A-Za-z0-9_]+)…$/, 'processing', ['handle']],
   [/^已取关 @([A-Za-z0-9_]+)。$/, 'removedUser', ['handle']],
   [/^已跳过 @([A-Za-z0-9_]+)。$/, 'skippedUser', ['handle']],

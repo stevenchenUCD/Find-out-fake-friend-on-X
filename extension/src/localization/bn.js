@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "উচ্চতা বদলাতে নিচের প্রান্ত টানুন",
+  "errorPanelHeightSave": "প্যানেলের উচ্চতা সংরক্ষণ করা যায়নি: {reason}",
   "waitingListUpdate": "X-এর তালিকা আপডেটের অপেক্ষায়। অগ্রগতি সংরক্ষিত আছে।",
   "language": "ভাষা",
   "panel": "Fake Friend",

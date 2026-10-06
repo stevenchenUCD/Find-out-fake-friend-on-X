@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "ఎత్తు మార్చడానికి దిగువ అంచును లాగండి",
+  "errorPanelHeightSave": "ప్యానెల్ ఎత్తును సేవ్ చేయలేకపోయాం: {reason}",
   "waitingListUpdate": "X జాబితాను అప్‌డేట్ చేసే వరకు వేచి ఉంది. పురోగతి భద్రంగా ఉంది.",
   "language": "భాష",
   "panel": "Fake Friend",

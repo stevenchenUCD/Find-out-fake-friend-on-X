@@ -27,3 +27,26 @@ test('导出记录保留操作顺序，且不混入其他账号数据', async ()
   assert.equal(Object.keys(result).length, 1);
   assert.deepEqual(Object.values(result)[0].events.map(e => e.type), ['intent', 'removed']);
 });
+
+test('面板高度跨实例记住，按账号隔离，保存白名单和运行设置不会覆盖高度', async () => {
+  const storage = memory();
+  const store = new LocalStore(storage, 'Tester');
+  assert.equal(await store.loadPanelHeight(), undefined);
+  await store.savePanelHeight(760);
+  await store.save(DEFAULT_SETTINGS, new Set(['alice']));
+  assert.equal(await new LocalStore(storage, 'tester').loadPanelHeight(), 760);
+  assert.equal(await new LocalStore(storage, 'other').loadPanelHeight(), undefined);
+  await store.savePanelHeight(480);
+  assert.equal(await new LocalStore(storage, 'tester').loadPanelHeight(), 480);
+  assert.deepEqual([...(await store.load()).keep], ['alice']);
+});
+
+test('损坏的高度存储和无效高度必须报错，不能默默当成默认尺寸', async () => {
+  const storage = memory();
+  const store = new LocalStore(storage, 'tester');
+  for (const height of [0, -1, 1.5, '640', null, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(async () => store.savePanelHeight(height), /本地配置格式不正确/);
+    await storage.set({ [`${store.prefix}panel-height`]: height });
+    await assert.rejects(async () => store.loadPanelHeight(), /本地配置格式不正确/);
+  }
+});

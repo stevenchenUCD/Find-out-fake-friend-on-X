@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "Kéo cạnh dưới để chỉnh chiều cao",
+  "errorPanelHeightSave": "Không thể lưu chiều cao bảng: {reason}",
   "waitingListUpdate": "Đang chờ X cập nhật danh sách. Tiến độ được giữ lại.",
   "language": "Ngôn ngữ",
   "panel": "Fake Friend",

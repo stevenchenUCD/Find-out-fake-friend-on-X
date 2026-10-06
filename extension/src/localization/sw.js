@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "Vuta ukingo wa chini kurekebisha urefu",
+  "errorPanelHeightSave": "Urefu wa paneli haukuweza kuhifadhiwa: {reason}",
   "waitingListUpdate": "Inasubiri X isasishe orodha. Maendeleo yamehifadhiwa.",
   "language": "Lugha",
   "panel": "Fake Friend",

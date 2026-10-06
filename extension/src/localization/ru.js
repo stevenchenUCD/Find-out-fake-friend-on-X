@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "Потяните нижний край, чтобы изменить высоту",
+  "errorPanelHeightSave": "Не удалось сохранить высоту панели: {reason}",
   "waitingListUpdate": "Ожидание обновления списка в X. Прогресс сохранён.",
   "language": "Язык",
   "panel": "Fake Friend",

@@ -215,7 +215,11 @@ function bottomPage(t) {
   Object.defineProperty(dom.window, 'scrollY', { value: 1000, configurable: true });
   Object.defineProperty(dom.window, 'innerHeight', { value: 1000, configurable: true });
   Object.defineProperty(dom.window.document.documentElement, 'scrollHeight', { value: 2000, configurable: true });
-  t.mock.method(dom.window, 'scrollBy', () => {});
+  // jsdom 不计算布局：关注列表区域延伸到整页底部，按当前滚动位置换算成视口坐标。
+  dom.window.document.querySelector('section[role="region"]').getBoundingClientRect =
+    () => ({ top: -dom.window.scrollY, bottom: 2000 - dom.window.scrollY, height: 2000 });
+  // 页面滚不动：滚动请求结束，位置不变。
+  t.mock.method(dom.window, 'scrollTo', () => dom.window.document.dispatchEvent(new dom.window.Event('scrollend')));
   t.mock.method(Math, 'random', () => 0);
   return dom;
 }
@@ -247,19 +251,27 @@ test('末尾加载动画延迟出现并增加账号时，继续扫描新内容',
   const dom = bottomPage(t);
   t.mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1000000 });
   const controller = new AbortController();
-  let result;
+  const adapter = createXAdapter(dom.window.document, dom.window.location);
+  const scroll = () => {
+    const call = {};
+    call.task = adapter.scroll({ owner: 'tester', signal: controller.signal, minSeconds: 3, maxSeconds: 10 })
+      .then(value => { call.result = value; return value; });
+    return call;
+  };
   try {
-    const task = createXAdapter(dom.window.document, dom.window.location).scroll({
-      owner: 'tester', signal: controller.signal, minSeconds: 3, maxSeconds: 10
-    }).then(value => { result = value; return value; });
+    const check = scroll();
     await settle();
     const loading = dom.window.document.createElement('div'); loading.setAttribute('role', 'progressbar');
     dom.window.document.querySelector('section').append(loading);
+    await settle();
+    assert.equal(check.result, true, '末尾复核时出现加载动画，应返回继续扫描');
+    // 下一轮仍在加载：等到加载结束，复核间隔过去也不能当成已经结束。
+    const waiting = scroll();
     t.mock.timers.tick(3000); await settle();
-    assert.equal(result, undefined, '加载过程中不能当成已经结束');
+    assert.equal(waiting.result, undefined, '加载过程中不能当成已经结束');
     appendRow(dom.window.document, { id: '102', handle: 'bob' }); loading.remove();
     await settle();
-    assert.equal(await task, true);
+    assert.equal(await waiting.task, true);
     assert.equal(readRows(dom.window.document, dom.window.location).rows.length, 2);
   } finally { controller.abort(); t.mock.timers.reset(); dom.window.close(); }
 });

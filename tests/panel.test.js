@@ -12,6 +12,7 @@ async function until(predicate) {
 
 test('执行准备期间点击停止，存储返回后也不能重新开始取关', async () => {
   const dom = fixture([{}]);
+  Object.defineProperty(dom.window.navigator, 'languages', { value: ['zh-CN'] });
   const originalAbort = globalThis.AbortController;
   globalThis.AbortController = dom.window.AbortController;
   let blockNextSave = false, releaseSave, removed = 0;
@@ -34,10 +35,9 @@ test('执行准备期间点击停止，存储返回后也不能重新开始取�
     const root = dom.window.document.querySelector('#fake-friend-panel').shadowRoot;
     const button = id => root.getElementById(id);
     button('scan').click();
-    await until(() => !button('review-start').disabled);
-    button('review-start').click();
-    await until(() => !button('approve').disabled);
-    button('approve').click();
+    await until(() => !button('scan').disabled);
+    assert.equal(button('review-start'), null, '面板应直接使用名单选择，不再显示逐个确认按钮');
+    root.querySelector('button[data-choice="remove"]').click();
     await until(() => !button('execute').hidden);
     assert.match(button('records').textContent, /已确认/);
     assert.equal(button('candidates').textContent, '0');
@@ -60,6 +60,7 @@ test('执行准备期间点击停止，存储返回后也不能重新开始取�
 
 test('暂停保留倒计时，隐藏后复用原面板，卸载网页时清理计时', async t => {
   const dom = fixture([{}]);
+  Object.defineProperty(dom.window.navigator, 'languages', { value: ['zh-CN'] });
   const originalAbort = globalThis.AbortController;
   globalThis.AbortController = dom.window.AbortController;
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000000 });
@@ -114,7 +115,7 @@ test('暂停保留倒计时，隐藏后复用原面板，卸载网页时清理�
     const host = dom.window.document.querySelector('#fake-friend-panel');
     field('close').click();
     assert.equal(host.hidden, true);
-    assert.equal(countdown.hidden, false, '隐藏面板保留运行中的倒计时');
+    assert.equal(countdown.hidden, true, '隐藏面板会暂停任务并清理倒计时');
     await openPanel({ document: dom.window.document, adapter, storage, cssURL: 'https://example.test/panel.css' });
     assert.equal(host.hidden, false);
     assert.equal(dom.window.document.querySelector('#fake-friend-panel'), host);
@@ -136,6 +137,7 @@ test('暂停保留倒计时，隐藏后复用原面板，卸载网页时清理�
 
 test('倒计时归零后正常进入下一轮，完成扫描后不保留倒计时', async t => {
   const dom = fixture([{}]);
+  Object.defineProperty(dom.window.navigator, 'languages', { value: ['zh-CN'] });
   const originalAbort = globalThis.AbortController;
   globalThis.AbortController = dom.window.AbortController;
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1000000 });
@@ -174,8 +176,9 @@ test('倒计时归零后正常进入下一轮，完成扫描后不保留倒计�
   }
 });
 
-test('本轮名单直接选择与逐个确认同步，白名单持久保存，执行只处理最终选择', async () => {
+test('本轮名单直接选择、撤销与跳过，白名单持久保存，执行只处理最终选择', async () => {
   const dom = fixture([{ id: '101', handle: 'alice' }, { id: '102', handle: 'bob' }, { id: '103', handle: 'carol' }]);
+  Object.defineProperty(dom.window.navigator, 'languages', { value: ['zh-CN'] });
   const originalAbort = globalThis.AbortController;
   globalThis.AbortController = dom.window.AbortController;
   const data = {}, located = [], removed = [];
@@ -200,33 +203,33 @@ test('本轮名单直接选择与逐个确认同步，白名单持久保存，�
     assert.equal(choice('102', 'remove').textContent, '假朋友');
     choice('101', 'keep').click();
     await until(() => !field('scan').disabled);
-    assert.match(field('whitelist').value, /@alice/);
+    assert.match(field('whitelist-list').textContent, /@alice/);
     assert.deepEqual(data['fake-friend/v0/tester/config'].keep, ['alice']);
-    assert.equal(choice('101', 'remove').disabled, true);
-    choice('103', 'skip').click();
-    await until(() => !field('scan').disabled);
-    assert.equal(field('candidates').textContent, '1');
-    assert.equal(field('execute').hidden, true);
-    assert.deepEqual(located, [], '列表选择不强制翻页');
-    assert.deepEqual(removed, [], '选择不直接取关');
-    field('review-start').click();
-    await until(() => !field('approve').disabled);
-    assert.deepEqual(located, ['102'], '逐个确认只定位未选择的人');
-    field('approve').click();
+    assert.equal(choice('101', 'remove'), null, '白名单账号保存后应从本轮名单隐藏');
+    choice('102', 'remove').click();
     await until(() => !field('execute').hidden && !field('execute').disabled);
     assert.equal(choice('102', 'remove').getAttribute('aria-pressed'), 'true');
-    assert.equal(field('candidates').textContent, '0');
+    assert.equal(field('candidates').textContent, '1');
     choice('103', 'remove').click();
     await until(() => !field('execute').disabled);
     assert.match(field('execute').textContent, /2 人/);
-    choice('102', 'skip').click();
+    choice('102', 'remove').click();
     await until(() => !field('execute').disabled);
     assert.match(field('execute').textContent, /1 人/);
-    assert.equal(choice('102', 'skip').getAttribute('aria-pressed'), 'true');
+    assert.equal(choice('102', 'remove').getAttribute('aria-pressed'), 'false');
+    assert.equal(field('candidates').textContent, '1');
+    choice('102', 'remove').click();
+    await until(() => !field('execute').disabled);
+    assert.match(field('execute').textContent, /2 人/);
+    choice('103', 'skip').click();
+    await until(() => !field('execute').disabled);
+    assert.match(field('execute').textContent, /1 人/);
+    assert.equal(choice('103', 'skip'), null, '跳过的账号应从本轮名单隐藏');
+    assert.deepEqual(located, [], '名单选择不强制翻页');
     assert.deepEqual(removed, []);
     field('execute').click();
     await until(() => !field('scan').disabled);
-    assert.deepEqual(removed, ['103']);
+    assert.deepEqual(removed, ['102']);
   } finally {
     dom.window.dispatchEvent(new dom.window.Event('pagehide'));
     await settle();

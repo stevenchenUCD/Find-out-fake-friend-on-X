@@ -11,7 +11,7 @@ const server = http.createServer(async (request, response) => {
       response.end(popup.replace('href="src/popup.css"', 'href="/extension/src/popup.css"').replace('src="src/popup-entry.js"', 'src="/tests/入口提示模拟.js"'));
       return;
     }
-    if (!/^\/(?:extension\/src\/[a-z-]+\.(?:js|css)|tests\/(?:网页模拟\.html|demo\.js|入口提示模拟\.js))$/.test(path)) {
+    if (!/^\/(?:extension\/src\/(?:[a-z-]+\.(?:js|css)|localization\/[A-Za-z-]+\.js)|tests\/(?:网页模拟\.html|demo\.js|入口提示模拟\.js))$/.test(path)) {
       response.writeHead(404); response.end('Not found'); return;
     }
     const content = await readFile(new URL(`.${path}`, root));

@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "उंची बदलण्यासाठी खालची कड ओढा",
+  "errorPanelHeightSave": "पॅनेलची उंची जतन करता आली नाही: {reason}",
   "waitingListUpdate": "X ची यादी अपडेट होण्याची प्रतीक्षा आहे. प्रगती जतन केली आहे.",
   "language": "भाषा",
   "panel": "Fake Friend",

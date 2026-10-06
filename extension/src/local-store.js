@@ -22,6 +22,18 @@ export class LocalStore {
       ...this.keepProfileRecords(keepProfiles)
     });
   }
+  validatePanelHeight(height) {
+    if (!Number.isSafeInteger(height) || height <= 0) throw new Error('本地配置格式不正确，请检查扩展存储。');
+    return height;
+  }
+  async loadPanelHeight() {
+    const key = `${this.prefix}panel-height`;
+    const height = (await this.storage.get(key))[key];
+    return height === undefined ? undefined : this.validatePanelHeight(height);
+  }
+  async savePanelHeight(height) {
+    await this.storage.set({ [`${this.prefix}panel-height`]: this.validatePanelHeight(height) });
+  }
   readKeepProfiles(data, keep) {
     const profiles = new Map();
     for (const handle of keep) {

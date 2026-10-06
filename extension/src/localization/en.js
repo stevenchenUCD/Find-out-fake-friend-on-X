@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "Drag the bottom edge to adjust height",
+  "errorPanelHeightSave": "Panel height could not be saved: {reason}",
   "waitingListUpdate": "Waiting for X to update the list. Progress is retained.",
   "language": "Language",
   "panel": "Fake Friend",

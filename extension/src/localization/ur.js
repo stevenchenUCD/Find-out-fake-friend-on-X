@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "اونچائی بدلنے کے لیے نچلا کنارہ کھینچیں",
+  "errorPanelHeightSave": "پینل کی اونچائی محفوظ نہیں ہو سکی: {reason}",
   "waitingListUpdate": "X کی فہرست اپ ڈیٹ ہونے کا انتظار ہے۔ پیش رفت محفوظ ہے۔",
   "language": "زبان",
   "panel": "Fake Friend",

@@ -1,4 +1,6 @@
 export default {
+  "resizePanel": "下端を上下にドラッグして高さを変更",
+  "errorPanelHeightSave": "パネルの高さを保存できませんでした：{reason}",
   "waitingListUpdate": "X のリスト更新を待っています。進捗は保持されています。",
   "language": "言語",
   "panel": "Fake Friend",
